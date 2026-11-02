@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pixel Chat Themes</title>
+  <style>
+    :root { --panel: rgba(20, 20, 24, 0.72); --line: rgba(255,255,255,0.12); --text: #ececec; --muted: #a8a8b0; --accent: #d97757; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: #0d0907; color: var(--text); font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    #bg { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; }
+    .app { position: relative; z-index: 1; height: 100%; display: flex; flex-direction: column; max-width: 820px; margin: 0 auto; padding: 16px; }
+    .msgs { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 24px 0; }
+    .msg { max-width: 80%; padding: 10px 14px; border-radius: 14px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); animation: pop .25s ease; }
+    .msg.user { align-self: flex-end; background: rgba(40,40,46,0.85); border: 1px solid var(--line); }
+    .msg.bot { align-self: flex-start; background: rgba(0,0,0,0.25); text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+    @keyframes pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    .picker { display: none; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px 12px; margin-bottom: 8px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+    .picker.open { display: block; animation: pop .2s ease; }
+    .picker-head { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+    .picker-head code { background: rgba(255,255,255,.08); color: var(--text); padding: 2px 6px; border-radius: 6px; margin-right: 6px; }
+    .thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; }
+    .thumb { background: none; border: 0; padding: 0; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer; text-align: center; }
+    .thumb canvas { display: block; width: 100%; height: 52px; border-radius: 8px; border: 2px solid transparent; transition: border-color .15s, transform .15s; }
+    .thumb:hover canvas { transform: translateY(-2px); }
+    .thumb.active canvas, .thumb:focus-visible canvas { border-color: var(--accent); }
+    .thumb.active { color: var(--text); }
+    .composer { display: flex; gap: 8px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 8px 8px 8px 14px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+    .composer input { flex: 1; min-width: 0; background: none; border: 0; outline: none; color: var(--text); font: inherit; font-size: 15px; }
+    .composer button { background: var(--accent); color: #fff; border: 0; border-radius: 10px; padding: 8px 14px; font: inherit; font-weight: 600; cursor: pointer; }
+    .hint { color: var(--muted); font-size: 12px; text-align: center; margin-top: 6px; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+  </style>
+</head>
+<body>
+  <canvas id="bg" aria-hidden="true"></canvas>
+  <main class="app">
+    <div class="msgs" id="msgs">
+      <div class="msg bot">Xin chào BOSS 👋 Gõ <b>/theme</b> để chọn hình nền ASCII động.</div>
+    </div>
+    <div class="picker" id="picker" role="dialog" aria-label="Chọn theme">
+      <div class="picker-head"><span><code>/theme</code>ASCII wallpapers</span><span>↵ apply · esc close</span></div>
+      <div class="thumbs" id="thumbs"></div>
+    </div>
+    <form class="composer" id="form">
+      <input id="input" placeholder="Type / for commands" autocomplete="off" />
+      <button type="submit">Gửi</button>
+    </form>
+    <div class="hint">8 theme: Claude Code · Cloud Drift · Honu Lagoon · Koi Pond · Jellyfish · Paper Boats · Fireflies · Moonlit</div>
+  </main>
+
+  <script src="ascii-themes.js"></script>
+  <script>
+    const KEY = 'pixel-chat-theme';
+    let saved = 'moonlit';
+    try { saved = localStorage.getItem(KEY) || saved; } catch (e) {}
+    const scene = AsciiThemes.mount(document.getElementById('bg'), { theme: saved });
+
+    const picker = document.getElementById('picker'), thumbs = document.getElementById('thumbs');
+    const input = document.getElementById('input'), msgs = document.getElementById('msgs');
+    const themes = AsciiThemes.list();
+    let sel = Math.max(0, themes.findIndex((t) => t.id === saved));
+    const mini = [];
+
+    themes.forEach((t, i) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'thumb'; b.dataset.id = t.id;
+      b.innerHTML = '<canvas></canvas><span>' + t.name + '</span>';
+      b.onclick = () => apply(i);
+      thumbs.appendChild(b);
+    });
+
+    function mark() { [...thumbs.children].forEach((el, i) => el.classList.toggle('active', i === sel)); }
+    function openPicker() {
+      picker.classList.add('open'); mark();
+      if (!mini.length) [...thumbs.querySelectorAll('canvas')].forEach((c, i) => mini.push(AsciiThemes.mount(c, { theme: themes[i].id, cell: 6, mascot: false })));
+    }
+    function closePicker() { picker.classList.remove('open'); mini.splice(0).forEach((m) => m.destroy()); }
+    function say(text, who) { const d = document.createElement('div'); d.className = 'msg ' + who; d.textContent = text; msgs.appendChild(d); msgs.scrollTop = msgs.scrollHeight; }
+    function apply(i) {
+      sel = i; scene.setTheme(themes[i].id);
+      try { localStorage.setItem(KEY, themes[i].id); } catch (e) {}
+      closePicker(); input.value = ''; input.focus();
+      say('Đã đổi sang ' + themes[i].name + ' ✨', 'bot');
+    }
+
+    input.addEventListener('input', () => input.value.startsWith('/') ? openPicker() : closePicker());
+    input.addEventListener('keydown', (e) => {
+      if (!picker.classList.contains('open')) return;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { sel = (sel + 1) % themes.length; mark(); e.preventDefault(); }
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { sel = (sel - 1 + themes.length) % themes.length; mark(); e.preventDefault(); }
+      else if (e.key === 'Enter') { apply(sel); e.preventDefault(); }
+      else if (e.key === 'Escape') { closePicker(); input.value = ''; }
+    });
+    document.getElementById('form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const v = input.value.trim(); if (!v) return;
+      say(v, 'user'); input.value = '';
+      setTimeout(() => say('Đã nhận BOSS! (đây là khung chat demo — gõ /theme để đổi nền)', 'bot'), 400);
+    });
+  </script>
+</body>
+</html>
